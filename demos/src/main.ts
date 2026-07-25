@@ -8,6 +8,7 @@ import {
   formState,
   select,
   colorInput,
+  img,
   imgColor,
   videoColor,
   clock,
@@ -25,6 +26,7 @@ import {
   pageVisible,
   navType,
   ua,
+  random,
 } from 'prop-for-that/plugins'
 // FOUC-safe device constants on :root: --const-dpr / cores / mem / scrollbar-w(-thin) / scrollbar-overlay.
 // Side-effect import — writes once, synchronously. Surfaced in the gallery's head card.
@@ -61,6 +63,7 @@ registerPlugins(
   formState,
   select,
   colorInput,
+  img,
   imgColor,
   videoColor,
   clock,
@@ -78,6 +81,7 @@ registerPlugins(
   pageVisible,
   navType,
   ua,
+  random,
 )
 
 // ── The entire reactive wiring. JS exposes state; CSS does all the reacting.
@@ -218,6 +222,12 @@ if (sunImg && sunCard && sunPicker) {
 // colours — accent / dark / light / avg — all inherited from the stage.
 const sunStage = document.getElementById('sun-stage')
 if (sunStage) propsFor(sunStage, ['pointer-local', 'img-color'])
+// `img` HOISTED onto the card — the JS twin of data-props-to="figure". The source
+// observes the <img> (load/error, natural size) but --live-loaded lands on the
+// figure, so the skeleton *sibling* can `@container style(--live-loaded: 0)` while
+// the photo is still downloading. On the <img> itself that value would be
+// unreachable: properties inherit downward only, style queries match an ancestor.
+if (sunImg) propsFor(sunImg, ['img'], { to: '.sun-card' })
 
 // ── Demo 16 (video-color): bind it to the STAGE so the card's glow AND the two
 // swatches below it read the sampled colours (~4 Hz). The accent drives the
@@ -407,6 +417,44 @@ if (noHover && hasOrient && tiltBtn) {
   })
 }
 
+// ── Demo 17 (random): sixty-four IDENTICAL spans and one CSS rule. Nothing in
+// the markup or the stylesheet distinguishes them — every difference (size, hue,
+// roundness, twinkle phase) is CSS reading that tile's own write-once
+// --const-random / -2 / -3. "re-roll" rebinds for a fresh field; "seed 42" rebinds
+// under configure({ randomSeed: 42 }), which derives each roll from the tile's
+// position in the DOM — so the seeded field is the same one every time, forever.
+const rndGrid = document.getElementById('rnd-grid')
+const rndRoll = document.getElementById('rnd-roll')
+const rndSeed = document.getElementById('rnd-seed')
+const rndNote = document.getElementById('rnd-note')
+if (rndGrid && rndRoll && rndSeed && rndNote) {
+  for (let i = 0; i < 64; i++) {
+    const tile = document.createElement('span')
+    tile.className = 'rnd-tile'
+    rndGrid.append(tile)
+  }
+  const tiles = rndGrid.querySelectorAll<HTMLElement>('.rnd-tile')
+  let seeded = false
+  let disposeRnd = () => {}
+
+  const rollTiles = (): void => {
+    disposeRnd() // also removes the --const-random* it wrote
+    configure({ randomSeed: seeded ? 42 : undefined })
+    disposeRnd = propsFor(tiles, ['random'])
+    rndNote.textContent = seeded
+      ? 'seeded 42 — the same field, every roll and every load'
+      : 'unseeded — a new field every roll'
+  }
+
+  rollTiles()
+  rndRoll.addEventListener('click', rollTiles)
+  rndSeed.addEventListener('click', () => {
+    seeded = !seeded
+    rndSeed.setAttribute('aria-pressed', String(seeded))
+    rollTiles()
+  })
+}
+
 // ── HUD play/pause: freeze / unfreeze the whole library ─────────────────────
 // pause() cancels the single shared frame loop, so every --live-* across the page
 // holds its last value — the HUD's own pointer x/y % stop counting — and resume()
@@ -443,6 +491,7 @@ const DEMO_PAGE: Record<string, string> = {
   'form-state': 'form-state',
   'img-color': 'img-color',
   'video-color': 'video-color',
+  random: 'random',
 }
 const ELEMENT_PLUGINS = new Set(['media', 'img', 'truncated'])
 const docUrlFor = (key: string): string =>
